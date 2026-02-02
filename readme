@@ -1,0 +1,45 @@
+{
+  "name": "Eniola",
+  "email": "abayomi@example.com",
+  "password": "strongPassword123"
+}
+
+
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5N2JmYjk3ZGNkNjY5NDJkMDEyZWZjOCIsImlhdCI6MTc2OTczMzAxNSwiZXhwIjoxNzcwMzM3ODE1fQ.2seZVp08MhYI5tCr2CdaK_A7FifNU5dkrMFaMtRYD6U",
+  "user": {
+    "id": "697bfb97dcd66942d012efc8",
+    "name": "Eniola",
+    "email": "abayomi@example.com",
+    "role": "reader"
+  }
+}
+
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5N2JmYjk3ZGNkNjY5NDJkMDEyZWZjOCIsImlhdCI6MTc2OTczMzM2NCwiZXhwIjoxNzcwMzM4MTY0fQ.uOA_IKcEWmaL2TYFy25LvLYAvBfYEDpnGn98224FR5Y",
+  "user": {
+    "id": "697bfb97dcd66942d012efc8",
+    "name": "Eniola",
+    "email": "abayomi@example.com",
+    "role": "admin"
+  }
+}
+
+{
+  "success": true,
+  "post": {
+    "title": "Understanding React Hooks",
+    "content": "Long-form post content here...",
+    "slug": "understanding-react-hooks",
+    "status": "draft",
+    "tags": [
+      "697bf0977cd42d2bf4d1c6c4"
+    ],
+    "category": "697aa2fac3a92c63c42f3a0c",
+    "author": "697bfb97dcd66942d012efc8",
+    "_id": "697c139412fd146904f45081",
+    "createdAt": "2026-01-30T02:12:36.446Z",
+    "updatedAt": "2026-01-30T02:12:36.446Z",
+    "__v": 0
+  }
+}
