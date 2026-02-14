@@ -33,6 +33,10 @@ const PostSchema = new mongoose.Schema(
       ref: "Category",
       required: true,
     },
+    featuredImage: {
+      type: String,
+      default: null
+    },
     author: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

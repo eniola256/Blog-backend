@@ -33,7 +33,7 @@ const validateTags = async (tags = []) => {
 
 export const createPost = async (req, res) => {
   try {
-    const { title, content, slug, category, tags } = req.body;
+    const { title, content, slug, category, tags, featuredImage } = req.body;
 
     // 1. Category must exist
     if (!category) {
@@ -77,6 +77,7 @@ export const createPost = async (req, res) => {
       slug: postSlug,
       category,
       tags,
+      featuredImage,
       author: req.user._id
     });
 
