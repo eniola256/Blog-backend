@@ -1,6 +1,7 @@
 import express from "express";
 import authMiddleware from "../middleware/auth.middleware.js";
 import authorizeRoles from "../middleware/role.middleware.js";
+import upload from "../middleware/upload.middleware.js";
 import {
   getAdminCategories,
   createCategory,
@@ -62,11 +63,11 @@ router.get("/posts", getAdminPosts);
 // GET /api/admin/posts/:id - Get single post by ID
 router.get("/posts/:id", getAdminPostById);
 
-// POST /api/admin/posts - Create post
-router.post("/posts", createPost);
+// POST /api/admin/posts - Create post with file upload
+router.post("/posts", upload.single('featuredImage'), createPost);
 
-// PUT /api/admin/posts/:id - Update post
-router.put("/posts/:id", updatePost);
+// PUT /api/admin/posts/:id - Update post with file upload
+router.put("/posts/:id", upload.single('featuredImage'), updatePost);
 
 // DELETE /api/admin/posts/:id - Delete post
 router.delete("/posts/:id", deletePost);
