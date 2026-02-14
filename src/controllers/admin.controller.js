@@ -323,8 +323,13 @@ export const createPost = async (req, res) => {
       category,
       tags,
       status,
-      featuredImage,
     } = req.body;
+
+    // Handle file upload
+    let featuredImageUrl = req.body.featuredImage;
+    if (req.file) {
+      featuredImageUrl = `/uploads/${req.file.filename}`;
+    }
 
     if (!title || !content || !category) {
       return res.status(400).json({
@@ -361,7 +366,7 @@ export const createPost = async (req, res) => {
       category,
       tags: tags || [],
       status: status || "draft",
-      featuredImage: featuredImage || null,
+      featuredImage: featuredImageUrl,
       author: req.user._id,
     });
 
@@ -379,6 +384,7 @@ export const createPost = async (req, res) => {
   }
 };
 
+
 // PUT /api/admin/posts/:id - Update post
 export const updatePost = async (req, res) => {
   try {
@@ -390,8 +396,13 @@ export const updatePost = async (req, res) => {
       category,
       tags,
       status,
-      featuredImage,
     } = req.body;
+
+    // Handle file upload
+    let featuredImageUrl = req.body.featuredImage;
+    if (req.file) {
+      featuredImageUrl = `/uploads/${req.file.filename}`;
+    }
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Invalid post ID" });
@@ -444,7 +455,7 @@ export const updatePost = async (req, res) => {
     if (category) post.category = category;
     if (tags) post.tags = tags;
     if (status) post.status = status;
-    if (featuredImage !== undefined) post.featuredImage = featuredImage;
+    if (featuredImageUrl !== undefined) post.featuredImage = featuredImageUrl;
 
     await post.save();
 

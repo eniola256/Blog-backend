@@ -1,4 +1,6 @@
 import express from "express";
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import authRoutes from "./routes/auth.routes.js";
 import authMiddleware from "./middleware/auth.middleware.js";
 import authorizeRoles from "./middleware/role.middleware.js";
@@ -20,6 +22,12 @@ import adminRoutes from "./routes/admin.routes.js";
 const app = express();
 
 app.use(cors());
+
+// Serve uploaded files
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+app.use('/uploads', express.static(join(__dirname, '..', 'uploads')));
+
 app.use(express.json({ limit: '10mb' })); // ← Add limit just in case
 app.use(express.urlencoded({ extended: true })); // ← Add this too
 app.use(helmet());
