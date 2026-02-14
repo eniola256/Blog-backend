@@ -316,21 +316,32 @@ export const getAdminPostById = async (req, res) => {
 // POST /api/admin/posts - Create post
 export const createPost = async (req, res) => {
   try {
+    console.log('Body:', req.body);
+    console.log('File:', req.file);
+    
     const {
       title,
       content,
       slug,
       category,
-      tags,
       status,
     } = req.body;
 
-    // Handle file upload
-    let featuredImageUrl = req.body.featuredImage;
-    if (req.file) {
-      featuredImageUrl = `/uploads/${req.file.filename}`;
+    // Get tags from request
+    let tags = req.body.tags;
+    
+    // Parse tags - multer sends arrays differently
+    if (tags) {
+      if (typeof tags === 'string') {
+        tags = [tags];
+      } else if (!Array.isArray(tags)) {
+        tags = [];
+      }
+    } else {
+      tags = [];
     }
 
+    // Validate required fields
     if (!title || !content || !category) {
       return res.status(400).json({
         message: "Title, content, and category are required",
@@ -352,13 +363,26 @@ export const createPost = async (req, res) => {
       await validateTags(tags);
     }
 
+    // Generate slug
     const postSlug = slug || slugify(title, { lower: true, strict: true });
 
+    // Check for existing post
     const existingPost = await Post.findOne({ slug: postSlug });
     if (existingPost) {
       return res.status(409).json({ message: "A post with this slug already exists" });
     }
 
+    // Handle featured image from memory buffer
+    let featuredImage = null;
+    if (req.file) {
+      // Convert buffer to base64 data URL
+      const base64Image = req.file.buffer.toString('base64');
+      featuredImage = `data:${req.file.mimetype};base64,${base64Image}`;
+      
+      console.log('Image saved as base64, size:', base64Image.length);
+    }
+
+    // Create post
     const post = await Post.create({
       title,
       content,
@@ -366,7 +390,7 @@ export const createPost = async (req, res) => {
       category,
       tags: tags || [],
       status: status || "draft",
-      featuredImage: featuredImageUrl,
+      featuredImage,
       author: req.user._id,
     });
 
@@ -389,36 +413,37 @@ export const createPost = async (req, res) => {
 export const updatePost = async (req, res) => {
   try {
     const { id } = req.params;
+    
+    console.log('Update Body:', req.body);
+    console.log('Update File:', req.file);
+
     const {
       title,
       content,
       slug,
       category,
-      tags,
       status,
     } = req.body;
 
-    // Handle file upload
-    let featuredImageUrl = req.body.featuredImage;
-    if (req.file) {
-      featuredImageUrl = `/uploads/${req.file.filename}`;
+    // Parse tags
+    let tags = req.body.tags;
+    if (tags) {
+      if (typeof tags === 'string') {
+        tags = [tags];
+      } else if (!Array.isArray(tags)) {
+        tags = [];
+      }
     }
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid post ID" });
-    }
-
+    // Find existing post
     const post = await Post.findById(id);
     if (!post) {
       return res.status(404).json({ message: "Post not found" });
     }
 
-    // Ownership check
-    if (
-      post.author.toString() !== req.user._id.toString() &&
-      req.user.role !== "admin"
-    ) {
-      return res.status(403).json({ message: "Not authorized" });
+    // Check authorization
+    if (post.author.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ message: "Not authorized to update this post" });
     }
 
     // Validate category if provided
@@ -426,7 +451,6 @@ export const updatePost = async (req, res) => {
       if (!mongoose.Types.ObjectId.isValid(category)) {
         return res.status(400).json({ message: "Invalid category ID" });
       }
-
       const categoryExists = await Category.findById(category);
       if (!categoryExists) {
         return res.status(400).json({ message: "Category not found" });
@@ -438,34 +462,45 @@ export const updatePost = async (req, res) => {
       await validateTags(tags);
     }
 
-    // Check slug uniqueness if changing
+    // Handle slug update
+    let postSlug = slug;
     if (slug && slug !== post.slug) {
-      const existingPost = await Post.findOne({ slug });
+      postSlug = slugify(slug, { lower: true, strict: true });
+      const existingPost = await Post.findOne({ slug: postSlug, _id: { $ne: id } });
       if (existingPost) {
-        return res.status(409).json({
-          message: "A post with this slug already exists",
-        });
+        return res.status(409).json({ message: "A post with this slug already exists" });
       }
     }
 
-    // Update fields
-    if (title) post.title = title;
-    if (content) post.content = content;
-    if (slug) post.slug = slug;
-    if (category) post.category = category;
-    if (tags) post.tags = tags;
-    if (status) post.status = status;
-    if (featuredImageUrl !== undefined) post.featuredImage = featuredImageUrl;
+    // Handle featured image update
+    let featuredImage = post.featuredImage; // Keep existing if no new file
+    if (req.file) {
+      const base64Image = req.file.buffer.toString('base64');
+      featuredImage = `data:${req.file.mimetype};base64,${base64Image}`;
+    }
 
-    await post.save();
+    // Update post
+    const updatedPost = await Post.findByIdAndUpdate(
+      id,
+      {
+        title: title || post.title,
+        content: content || post.content,
+        slug: postSlug || post.slug,
+        category: category || post.category,
+        tags: tags !== undefined ? tags : post.tags,
+        status: status || post.status,
+        featuredImage,
+      },
+      { new: true, runValidators: true }
+    );
 
-    await post.populate("author", "name email");
-    await post.populate("category", "name slug");
-    await post.populate("tags", "name slug");
+    await updatedPost.populate("author", "name email");
+    await updatedPost.populate("category", "name slug");
+    await updatedPost.populate("tags", "name slug");
 
     res.json({
       success: true,
-      post,
+      post: updatedPost,
     });
   } catch (error) {
     console.error("UPDATE POST ERROR:", error);
