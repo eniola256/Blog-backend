@@ -28,13 +28,14 @@ export const getAdminCategories = async (req, res, next) => {
 
     res.json(categoriesWithCount);
   } catch (error) {
-    next(error);
+    res.status(500).json({ message: "Failed to fetch categories" });
   }
 };
+
 // POST /api/admin/categories - Create category
 export const createCategory = async (req, res, next) => {
   try {
-    const { name, description } = req.body; // ← Remove slug from here
+    const { name, description } = req.body;
 
     if (!name) {
       return res.status(400).json({ message: "Name is required" });
@@ -55,7 +56,6 @@ export const createCategory = async (req, res, next) => {
       return res.status(400).json({ message: "Category already exists" });
     }
 
-    // Use insertOne to bypass pre-save hook conflict
     const category = new Category({ 
       name: name.trim(), 
       slug: categorySlug,
@@ -73,7 +73,7 @@ export const createCategory = async (req, res, next) => {
     });
   } catch (error) {
     console.error('CREATE CATEGORY ERROR:', error.message);
-    next(error);  // Pass error to error handler
+    res.status(500).json({ message: "Failed to create category" });
   }
 };
 
@@ -110,7 +110,7 @@ export const updateCategory = async (req, res, next) => {
       postCount,
     });
   } catch (error) {
-    next(error);
+    res.status(500).json({ message: "Failed to update category" });
   }
 };
 
@@ -141,18 +141,17 @@ export const deleteCategory = async (req, res, next) => {
 
     res.json({ message: "Category deleted successfully" });
   } catch (error) {
-    next(error);
+    res.status(500).json({ message: "Failed to delete category" });
   }
 };
 
 // ========== TAGS CRUD ==========
 
 // GET /api/admin/tags - Get all tags with postCount
-export const getAdminTags = async (req, res) => {
+export const getAdminTags = async (req, res, next) => {
   try {
     const tags = await Tag.find().sort({ name: 1 });
 
-    // Get post count for each tag
     const tagsWithCount = await Promise.all(
       tags.map(async (tag) => {
         const postCount = await Post.countDocuments({ tags: tag._id });
@@ -169,12 +168,12 @@ export const getAdminTags = async (req, res) => {
 
     res.json(tagsWithCount);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
 // POST /api/admin/tags - Create tag
-export const createTag = async (req, res) => {
+export const createTag = async (req, res, next) => {
   try {
     const { name } = req.body;
 
@@ -196,12 +195,12 @@ export const createTag = async (req, res) => {
       postCount: 0,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
 // PUT /api/admin/tags/:id - Update tag
-export const updateTag = async (req, res) => {
+export const updateTag = async (req, res, next) => {
   try {
     const { name } = req.body;
     const { id } = req.params;
@@ -231,12 +230,12 @@ export const updateTag = async (req, res) => {
       postCount,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
 // DELETE /api/admin/tags/:id - Delete tag
-export const deleteTag = async (req, res) => {
+export const deleteTag = async (req, res, next) => {
   try {
     const { id } = req.params;
 
@@ -253,7 +252,7 @@ export const deleteTag = async (req, res) => {
 
     res.json({ message: "Tag deleted successfully" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
@@ -278,7 +277,7 @@ const validateTags = async (tags = []) => {
 };
 
 // GET /api/admin/posts - Get all posts for admin (including drafts)
-export const getAdminPosts = async (req, res) => {
+export const getAdminPosts = async (req, res, next) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -301,12 +300,12 @@ export const getAdminPosts = async (req, res) => {
       posts,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
 // GET /api/admin/posts/:id - Get single post by ID
-export const getAdminPostById = async (req, res) => {
+export const getAdminPostById = async (req, res, next) => {
   try {
     const { id } = req.params;
 
@@ -325,12 +324,12 @@ export const getAdminPostById = async (req, res) => {
 
     res.json(post);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
 // POST /api/admin/posts - Create post
-export const createPost = async (req, res) => {
+export const createPost = async (req, res, next) => {
   try {
     console.log('Body:', req.body);
     console.log('File:', req.file);
@@ -420,13 +419,13 @@ export const createPost = async (req, res) => {
     });
   } catch (error) {
     console.error("CREATE POST ERROR:", error);
-    res.status(500).json({ message: error.message || "Failed to create post" });
+    next(error);
   }
 };
 
 
 // PUT /api/admin/posts/:id - Update post
-export const updatePost = async (req, res) => {
+export const updatePost = async (req, res, next) => {
   try {
     const { id } = req.params;
     
@@ -520,12 +519,12 @@ export const updatePost = async (req, res) => {
     });
   } catch (error) {
     console.error("UPDATE POST ERROR:", error);
-    res.status(500).json({ message: error.message || "Failed to update post" });
+    next(error);
   }
 };
 
 // DELETE /api/admin/posts/:id - Delete post
-export const deletePost = async (req, res) => {
+export const deletePost = async (req, res, next) => {
   try {
     const { id } = req.params;
 
@@ -553,14 +552,14 @@ export const deletePost = async (req, res) => {
       message: "Post deleted successfully",
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
 // ========== STATS ==========
 
 // GET /api/admin/stats - Get dashboard stats
-export const getStats = async (req, res) => {
+export const getStats = async (req, res, next) => {
   try {
     const totalPosts = await Post.countDocuments();
     const publishedPosts = await Post.countDocuments({ status: "published" });
@@ -576,12 +575,12 @@ export const getStats = async (req, res) => {
       tagsCount,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
 // POST /api/admin/categories/bulk - Create multiple categories
-export const createCategoriesBatch = async (req, res) => {
+export const createCategoriesBatch = async (req, res, next) => {
   try {
     const { categories } = req.body;
 
@@ -618,6 +617,6 @@ export const createCategoriesBatch = async (req, res) => {
       errors,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
