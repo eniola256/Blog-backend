@@ -7,7 +7,7 @@ import slugify from "slugify";
 // ========== CATEGORIES CRUD ==========
 
 // GET /api/admin/categories - Get all categories with postCount
-export const getAdminCategories = async (req, res) => {
+export const getAdminCategories = async (req, res, next) => {
   try {
     const categories = await Category.find().sort({ name: 1 });
 
@@ -28,7 +28,7 @@ export const getAdminCategories = async (req, res) => {
 
     res.json(categoriesWithCount);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);  // Pass error to error handler
   }
 };
 
