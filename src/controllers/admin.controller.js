@@ -7,11 +7,10 @@ import slugify from "slugify";
 // ========== CATEGORIES CRUD ==========
 
 // GET /api/admin/categories - Get all categories with postCount
-export const getAdminCategories = async (req, res, next) => {
+export const getAdminCategories = async (req, res) => {
   try {
     const categories = await Category.find().sort({ name: 1 });
 
-    // Get post count for each category
     const categoriesWithCount = await Promise.all(
       categories.map(async (category) => {
         const postCount = await Post.countDocuments({ category: category._id });
@@ -19,6 +18,7 @@ export const getAdminCategories = async (req, res, next) => {
           _id: category._id,
           name: category.name,
           slug: category.slug,
+          description: category.description || "",
           postCount,
           createdAt: category.createdAt,
           updatedAt: category.updatedAt,
@@ -28,10 +28,9 @@ export const getAdminCategories = async (req, res, next) => {
 
     res.json(categoriesWithCount);
   } catch (error) {
-    next(error);  // Pass error to error handler
+    res.status(500).json({ message: error.message }); // ← Replace next(error) with this
   }
 };
-
 // POST /api/admin/categories - Create category
 export const createCategory = async (req, res) => {
   try {
