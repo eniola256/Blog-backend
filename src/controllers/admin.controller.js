@@ -32,7 +32,7 @@ export const getAdminCategories = async (req, res) => {
   }
 };
 // POST /api/admin/categories - Create category
-export const createCategory = async (req, res) => {
+export const createCategory = async (req, res, next) => {
   try {
     const { name, description } = req.body; // ← Remove slug from here
 
@@ -73,12 +73,12 @@ export const createCategory = async (req, res) => {
     });
   } catch (error) {
     console.error('CREATE CATEGORY ERROR:', error.message);
-    res.status(500).json({ message: error.message });
+    next(error);  // Pass error to error handler
   }
 };
 
 // PUT /api/admin/categories/:id - Update category
-export const updateCategory = async (req, res) => {
+export const updateCategory = async (req, res, next) => {
   try {
     const { name, slug } = req.body;
     const { id } = req.params;
@@ -110,12 +110,12 @@ export const updateCategory = async (req, res) => {
       postCount,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
 // DELETE /api/admin/categories/:id - Delete category
-export const deleteCategory = async (req, res) => {
+export const deleteCategory = async (req, res, next) => {
   try {
     const { id } = req.params;
 
@@ -141,7 +141,7 @@ export const deleteCategory = async (req, res) => {
 
     res.json({ message: "Category deleted successfully" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
