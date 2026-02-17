@@ -34,28 +34,45 @@ export const getAdminCategories = async (req, res) => {
 // POST /api/admin/categories - Create category
 export const createCategory = async (req, res) => {
   try {
-    const { name, slug } = req.body;
+    const { name, description } = req.body; // ← Remove slug from here
 
     if (!name) {
       return res.status(400).json({ message: "Name is required" });
     }
 
-    const categorySlug = slug || slugify(name, { lower: true, strict: true });
+    // Generate slug manually
+    const categorySlug = slugify(name, { lower: true, strict: true });
 
-    const exists = await Category.findOne({ slug: categorySlug });
+    // Check if already exists by name OR slug
+    const exists = await Category.findOne({ 
+      $or: [
+        { slug: categorySlug },
+        { name: name.trim() }
+      ]
+    });
+    
     if (exists) {
       return res.status(400).json({ message: "Category already exists" });
     }
 
-    const category = await Category.create({ name, slug: categorySlug,description: req.body.description || "" });
+    // Use insertOne to bypass pre-save hook conflict
+    const category = new Category({ 
+      name: name.trim(), 
+      slug: categorySlug,
+      description: description || ""
+    });
+    
+    await category.save();
 
     res.status(201).json({
       _id: category._id,
       name: category.name,
       slug: category.slug,
+      description: category.description,
       postCount: 0,
     });
   } catch (error) {
+    console.error('CREATE CATEGORY ERROR:', error.message);
     res.status(500).json({ message: error.message });
   }
 };
