@@ -48,7 +48,7 @@ export const createCategory = async (req, res) => {
       return res.status(400).json({ message: "Category already exists" });
     }
 
-    const category = await Category.create({ name, slug: categorySlug });
+    const category = await Category.create({ name, slug: categorySlug,description: req.body.description || "" });
 
     res.status(201).json({
       _id: category._id,
@@ -558,6 +558,48 @@ export const getStats = async (req, res) => {
       draftPosts,
       categoriesCount,
       tagsCount,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// POST /api/admin/categories/bulk - Create multiple categories
+export const createCategoriesBatch = async (req, res) => {
+  try {
+    const { categories } = req.body;
+
+    if (!categories || !Array.isArray(categories)) {
+      return res.status(400).json({ message: "Categories array is required" });
+    }
+
+    const results = [];
+    const errors = [];
+
+    for (const cat of categories) {
+      try {
+        const categorySlug = cat.slug || slugify(cat.name, { lower: true, strict: true });
+        const exists = await Category.findOne({ slug: categorySlug });
+
+        if (!exists) {
+          const created = await Category.create({
+            name: cat.name,
+            slug: categorySlug,
+            description: cat.description || "" 
+          });
+          results.push(created);
+        } else {
+          errors.push(`${cat.name} already exists`);
+        }
+      } catch (err) {
+        errors.push(`Failed to create ${cat.name}: ${err.message}`);
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      created: results,
+      errors,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

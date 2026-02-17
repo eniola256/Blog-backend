@@ -6,6 +6,7 @@ import {
   getAdminCategories,
   createCategory,
   updateCategory,
+  createCategoriesBatch,
   deleteCategory,
   getAdminTags,
   createTag,
@@ -34,6 +35,8 @@ router.get("/categories", getAdminCategories);
 
 // POST /api/admin/categories - Create category
 router.post("/categories", createCategory);
+
+router.post("/categories/bulk", createCategoriesBatch);
 
 // PUT /api/admin/categories/:id - Update category
 router.put("/categories/:id", updateCategory);

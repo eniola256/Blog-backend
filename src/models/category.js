@@ -14,6 +14,11 @@ const categorySchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+    description: {
+      type: String,
+      default: "",
+      trim: true,
+    },
   },
   { timestamps: true }
 );
@@ -25,6 +30,4 @@ categorySchema.pre("save", function (next) {
   next();
 });
 
-
 export default mongoose.model("Category", categorySchema);
-
