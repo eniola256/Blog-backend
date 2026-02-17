@@ -33,10 +33,10 @@ router.use(authorizeRoles("admin", "author"));
 // GET /api/admin/categories - Get all categories
 router.get("/categories", getAdminCategories);
 
+router.post("/categories/bulk", createCategoriesBatch);
+
 // POST /api/admin/categories - Create category
 router.post("/categories", createCategory);
-
-router.post("/categories/bulk", createCategoriesBatch);
 
 // PUT /api/admin/categories/:id - Update category
 router.put("/categories/:id", updateCategory);
