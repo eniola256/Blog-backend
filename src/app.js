@@ -84,6 +84,11 @@ app.get(
   }
 );
 
+app.get("/crash-test", (req, res) => {
+  throw new Error("Test error");
+});
+
+
 app.use(errorHandler);
 
 export default app;
