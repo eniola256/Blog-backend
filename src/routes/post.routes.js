@@ -6,6 +6,7 @@ import {
   deletePost,
   getMyPosts,
   publishPost,
+  toggleLikePost,
 } from "../controllers/post.controller.js";
 import authMiddleware from "../middleware/auth.middleware.js";
 import authorizeRoles from "../middleware/role.middleware.js";
@@ -18,6 +19,8 @@ const router = express.Router();
 // Public: all posts
 router.get("/", getAllPosts);
 
+// Public: toggle like on a post (requires auth)
+router.post("/:id/like", authMiddleware, toggleLikePost);
 
 // Protected: only authors & admins
 router.get("/my-posts", authMiddleware, authorizeRoles("author", "admin"), getMyPosts);
