@@ -17,6 +17,7 @@ import commentRoutes from "./routes/comment.routes.js";
 import cors from "cors";
 import tagPublicRoutes from "./routes/tagPublic.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
+import subscriberRoutes from "./routes/subscriber.routes.js";
 
 // Setup __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -49,6 +50,7 @@ app.use("/api/public/categories", categoryPublicRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/public/tags", tagPublicRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/subscribers", subscriberRoutes);
 
 // ... rest of your app.js
 

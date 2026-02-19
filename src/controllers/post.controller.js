@@ -3,6 +3,8 @@ import slugify from "slugify";
 import mongoose from "mongoose";
 import Tag from "../models/tag.model.js";
 import Category from "../models/category.js";
+import Subscriber from "../models/Subscriber.js";
+import { notifySubscribers } from "../utils/emailService.js";
 
 /**
  * Validates that all tag IDs exist in the database
@@ -302,10 +304,29 @@ export const publishPost = async (req, res) => {
       return res.status(403).json({ message: "Not allowed to publish/unpublish this post" });
     }
 
+    const wasDraft = post.status === "draft";
+    
     // Toggle status
     post.status = post.status === "published" ? "draft" : "published";
 
     await post.save();
+
+    // Notify subscribers when post is published (not when unpublished)
+    if (wasDraft && post.status === "published") {
+      try {
+        const subscribers = await Subscriber.find({ isSubscribed: true }).select("email");
+        const subscriberEmails = subscribers.map(s => s.email);
+        
+        if (subscriberEmails.length > 0) {
+          // Send notifications asynchronously (don't wait for completion)
+          notifySubscribers(post, subscriberEmails).catch(err => {
+            console.error("Failed to notify subscribers:", err.message);
+          });
+        }
+      } catch (notifyError) {
+        console.error("Error fetching subscribers:", notifyError.message);
+      }
+    }
 
     res.status(200).json({
       success: true,
