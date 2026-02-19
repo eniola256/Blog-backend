@@ -110,3 +110,43 @@ export const updateComment = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+/**
+ * Toggle like on a comment
+ * If user has already liked, it unlikes (removes the like)
+ * If user hasn't liked, it adds a like
+ */
+export const toggleLikeComment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    const comment = await Comment.findById(id);
+    if (!comment) {
+      return res.status(404).json({ message: "Comment not found" });
+    }
+
+    // Check if user already liked the comment
+    const hasLiked = comment.likes.includes(userId);
+
+    if (hasLiked) {
+      // Unlike: remove user from likes array
+      comment.likes = comment.likes.filter(
+        (like) => like.toString() !== userId.toString()
+      );
+    } else {
+      // Like: add user to likes array
+      comment.likes.push(userId);
+    }
+
+    await comment.save();
+
+    res.json({
+      message: hasLiked ? "Comment unliked" : "Comment liked",
+      likesCount: comment.likes.length,
+      hasLiked: !hasLiked,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

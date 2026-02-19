@@ -4,6 +4,7 @@ import {
   getCommentsByPost,
   deleteComment,
   updateComment,
+  toggleLikeComment,
 } from "../controllers/comment.controller.js";
 import authMiddleware from "../middleware/auth.middleware.js";
 import { validateRequest } from "../middleware/validateRequest.js";
@@ -23,6 +24,11 @@ router.post("/", authMiddleware, createCommentValidator, validateRequest, create
  * Get comments for a post (public)
  */
 router.get("/post/:postId", getCommentsByPost);
+
+/**
+ * Toggle like on a comment (protected)
+ */
+router.post("/:id/like", authMiddleware, toggleLikeComment);
 
 /**
  * Update a comment (protected - owner only)

@@ -248,6 +248,46 @@ export const deletePost = async (req, res) => {
   }
 };
 
+/**
+ * Toggle like on a post
+ * If user has already liked, it unlikes (removes the like)
+ * If user hasn't liked, it adds a like
+ */
+export const toggleLikePost = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    const post = await Post.findById(id);
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    // Check if user already liked the post
+    const hasLiked = post.likes.includes(userId);
+
+    if (hasLiked) {
+      // Unlike: remove user from likes array
+      post.likes = post.likes.filter(
+        (like) => like.toString() !== userId.toString()
+      );
+    } else {
+      // Like: add user to likes array
+      post.likes.push(userId);
+    }
+
+    await post.save();
+
+    res.json({
+      message: hasLiked ? "Post unliked" : "Post liked",
+      likesCount: post.likes.length,
+      hasLiked: !hasLiked,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // PATCH /api/posts/:id/publish
 export const publishPost = async (req, res) => {
   try {
