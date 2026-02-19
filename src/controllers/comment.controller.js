@@ -20,7 +20,7 @@ export const createComment = async (req, res) => {
     const comment = await Comment.create({
       content,
       post: postId,
-      author: req.user._id,
+      user: req.user._id,
     });
 
     res.status(201).json(comment);
@@ -43,7 +43,7 @@ export const getCommentsByPost = async (req, res) => {
 
     const comments = await Comment.find({ post: postId })
       .sort({ createdAt: 1 })
-      .populate("author", "name");
+      .populate("user", "name");
 
     res.json(comments);
   } catch (error) {
@@ -63,7 +63,7 @@ export const deleteComment = async (req, res) => {
       return res.status(404).json({ message: "Comment not found" });
     }
 
-    const isOwner = comment.author.toString() === req.user._id.toString();
+    const isOwner = comment.user.toString() === req.user._id.toString();
     const isAdmin = req.user.role === "admin";
 
     if (!isOwner && !isAdmin) {
@@ -73,6 +73,39 @@ export const deleteComment = async (req, res) => {
     await comment.deleteOne();
 
     res.json({ message: "Comment deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * Update/Edit a comment
+ */
+export const updateComment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { content } = req.body;
+
+    if (!content || content.trim().length === 0) {
+      return res.status(400).json({ message: "Content is required" });
+    }
+
+    const comment = await Comment.findById(id);
+    if (!comment) {
+      return res.status(404).json({ message: "Comment not found" });
+    }
+
+    // Only the comment owner can edit
+    const isOwner = comment.user.toString() === req.user._id.toString();
+    if (!isOwner) {
+      return res.status(403).json({ message: "Not authorized to edit this comment" });
+    }
+
+    comment.content = content.trim();
+    comment.isEdited = true;
+    await comment.save();
+
+    res.json(comment);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
