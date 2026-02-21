@@ -45,5 +45,5 @@
 }
 
 git add .
-git commit -m "integrated news letter pop up"
+git commit -m "added email config"
 git push origin main
