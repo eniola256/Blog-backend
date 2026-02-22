@@ -1,5 +1,11 @@
 import sgMail from '@sendgrid/mail';
 
+// Debug: Log the API key (first 10 chars only for security)
+console.log("🔑 SENDGRID_API_KEY exists:", !!process.env.SENDGRID_API_KEY);
+console.log("🔑 SENDGRID_API_KEY starts with:", process.env.SENDGRID_API_KEY?.substring(0, 10));
+console.log("🔑 SENDGRID_API_KEY length:", process.env.SENDGRID_API_KEY?.length);
+
+
 // Set API key
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
