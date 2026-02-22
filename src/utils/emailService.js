@@ -29,7 +29,7 @@ const createTransport = () => {
 export const sendWelcomeEmail = async (email) => {
   console.log("📤 Sending welcome email to:", email);
   
-  const transporter = createTransporter();
+  const transporter = createTransport();
 
   const mailOptions = {
     from: `"${process.env.EMAIL_FROM_NAME || "Blog Newsletter"}" <${process.env.EMAIL_USER}>`,
@@ -82,7 +82,7 @@ export const sendWelcomeEmail = async (email) => {
  * @param {Object} post - Post details
  */
 export const sendNewPostNotification = async (email, post) => {
-  const transporter = createTransporter();
+  const transporter = createTransport();
 
   const mailOptions = {
     from: `"${process.env.EMAIL_FROM_NAME || "Blog Newsletter"}" <${process.env.EMAIL_USER}>`,
