@@ -5,29 +5,41 @@ import { sendWelcomeEmail } from "../utils/emailService.js";
  * Subscribe to newsletter
  */
 export const subscribe = async (req, res) => {
+  console.log("🔔 Subscribe endpoint hit");
+  console.log("   Request body:", req.body);
+  
   try {
     const { email } = req.body;
 
     if (!email) {
+      console.log("❌ No email provided");
       return res.status(400).json({ message: "Email is required" });
     }
+
+    console.log("📧 Processing subscription for:", email);
 
     // Check if email already exists
     const existingSubscriber = await Subscriber.findOne({ email: email.toLowerCase() });
 
     if (existingSubscriber) {
+      console.log("   Email already exists in database");
+      
       // If previously unsubscribed, resubscribe them
       if (!existingSubscriber.isSubscribed) {
+        console.log("   Resubscribing previously unsubscribed user");
         existingSubscriber.isSubscribed = true;
         existingSubscriber.subscribedAt = new Date();
         existingSubscriber.unsubscribedAt = null;
         await existingSubscriber.save();
 
         // Send welcome email
+        console.log("   Attempting to send welcome email...");
         try {
           await sendWelcomeEmail(email);
+          console.log("   ✅ Welcome email sent successfully");
         } catch (emailError) {
-          console.error("Failed to send welcome email:", emailError.message);
+          console.error("   ❌ Failed to send welcome email:", emailError.message);
+          console.error("   Full error:", emailError);
         }
 
         return res.json({
@@ -36,19 +48,25 @@ export const subscribe = async (req, res) => {
         });
       }
 
+      console.log("   User already subscribed");
       return res.status(400).json({ message: "Email is already subscribed" });
     }
 
     // Create new subscriber
+    console.log("   Creating new subscriber...");
     const subscriber = await Subscriber.create({
       email: email.toLowerCase(),
     });
+    console.log("   ✅ Subscriber created:", subscriber._id);
 
     // Send welcome email
+    console.log("   Attempting to send welcome email...");
     try {
       await sendWelcomeEmail(email);
+      console.log("   ✅ Welcome email sent successfully");
     } catch (emailError) {
-      console.error("Failed to send welcome email:", emailError.message);
+      console.error("   ❌ Failed to send welcome email:", emailError.message);
+      console.error("   Full error:", emailError);
     }
 
     res.status(201).json({
@@ -56,6 +74,7 @@ export const subscribe = async (req, res) => {
       subscriber,
     });
   } catch (error) {
+    console.error("❌ Subscription error:", error);
     res.status(500).json({ message: error.message });
   }
 };
