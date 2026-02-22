@@ -1,31 +1,7 @@
-import nodemailer from "nodemailer";
+import sgMail from '@sendgrid/mail';
 
-/**
- * Create email transporter based on environment configuration
- */
-const createTransport = () => {
-  console.log("📧 Creating email transporter...");
-  console.log("   EMAIL_HOST:", process.env.EMAIL_HOST);
-  console.log("   EMAIL_PORT:", process.env.EMAIL_PORT);
-  console.log("   EMAIL_USER:", process.env.EMAIL_USER ? "✅ Set" : "❌ Not set");
-  console.log("   EMAIL_PASSWORD:", process.env.EMAIL_PASSWORD ? "✅ Set" : "❌ Not set");
-  
-  return nodemailer.createTransport({
-    host: "smtp.gmail.com",  // Don't use env var - force this
-    port: 587,
-    secure: false,
-    tls: {
-      rejectUnauthorized: true
-    },
-    dnsOptions: {
-      family: 4  // ← Move it here instead
-    },
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD,
-    },
-  });
-};
+// Set API key
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 /**
  * Send welcome email to new subscriber
@@ -34,11 +10,9 @@ const createTransport = () => {
 export const sendWelcomeEmail = async (email) => {
   console.log("📤 Sending welcome email to:", email);
   
-  const transporter = createTransport();
-
-  const mailOptions = {
-    from: `"${process.env.EMAIL_FROM_NAME || "Blog Newsletter"}" <${process.env.EMAIL_USER}>`,
+  const msg = {
     to: email,
+    from: process.env.EMAIL_USER, // Must be verified in SendGrid!
     subject: "Welcome to Our Newsletter!",
     html: `
       <!DOCTYPE html>
@@ -72,11 +46,10 @@ export const sendWelcomeEmail = async (email) => {
   };
 
   try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log("✅ Email sent successfully:", info.messageId);
-    return info;
+    await sgMail.send(msg);
+    console.log("✅ Email sent successfully via SendGrid");
   } catch (error) {
-    console.error("❌ Email sending failed:", error.message);
+    console.error("❌ SendGrid error:", error.response?.body || error.message);
     throw error;
   }
 };
@@ -87,11 +60,9 @@ export const sendWelcomeEmail = async (email) => {
  * @param {Object} post - Post details
  */
 export const sendNewPostNotification = async (email, post) => {
-  const transporter = createTransport();
-
-  const mailOptions = {
-    from: `"${process.env.EMAIL_FROM_NAME || "Blog Newsletter"}" <${process.env.EMAIL_USER}>`,
+  const msg = {
     to: email,
+    from: process.env.EMAIL_USER,
     subject: `New Post: ${post.title}`,
     html: `
       <!DOCTYPE html>
@@ -125,7 +96,7 @@ export const sendNewPostNotification = async (email, post) => {
     `,
   };
 
-  await transporter.sendMail(mailOptions);
+  await sgMail.send(msg);
 };
 
 /**
