@@ -3,14 +3,14 @@ import nodemailer from "nodemailer";
 /**
  * Create email transporter based on environment configuration
  */
-const createTransporter = () => {
+const createTransport = () => {
   console.log("📧 Creating email transporter...");
   console.log("   EMAIL_HOST:", process.env.EMAIL_HOST);
   console.log("   EMAIL_PORT:", process.env.EMAIL_PORT);
   console.log("   EMAIL_USER:", process.env.EMAIL_USER ? "✅ Set" : "❌ Not set");
   console.log("   EMAIL_PASSWORD:", process.env.EMAIL_PASSWORD ? "✅ Set" : "❌ Not set");
   
-  return nodemailer.createTransporter({
+  return nodemailer.createTransport({
     host: process.env.EMAIL_HOST || "smtp.gmail.com",
     port: parseInt(process.env.EMAIL_PORT) || 587,
     secure: process.env.EMAIL_SECURE === "true",
