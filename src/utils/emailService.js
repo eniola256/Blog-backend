@@ -11,10 +11,15 @@ const createTransport = () => {
   console.log("   EMAIL_PASSWORD:", process.env.EMAIL_PASSWORD ? "✅ Set" : "❌ Not set");
   
   return nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || "smtp.gmail.com",
-    port: parseInt(process.env.EMAIL_PORT) || 587,
-    secure: process.env.EMAIL_SECURE === "true",
-    family: 4, // ← ADD THIS LINE - Force IPv4
+    host: "smtp.gmail.com",  // Don't use env var - force this
+    port: 587,
+    secure: false,
+    tls: {
+      rejectUnauthorized: true
+    },
+    dnsOptions: {
+      family: 4  // ← Move it here instead
+    },
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASSWORD,
