@@ -41,15 +41,23 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(uploadsDir));
 app.use(helmet());
 app.use("/api", apiLimiter);
-app.use("/api/comments", commentRoutes);
+
+// AUTH first (no conflicts)
 app.use("/api/auth", authRoutes);
+
+// ADMIN routes BEFORE generic routes (more specific first!)
+app.use("/api/admin", adminRoutes);  // ← Move this UP
+
+// PUBLIC routes
 app.use("/api/public/posts", postPublicRoutes);
+app.use("/api/public/categories", categoryPublicRoutes);
+app.use("/api/public/tags", tagPublicRoutes);
+
+// GENERIC routes (less specific, come last)
 app.use("/api/posts", postRoutes);
 app.use("/api/tags", tagRoutes);
-app.use("/api/public/categories", categoryPublicRoutes);
 app.use("/api/categories", categoryRoutes);
-app.use("/api/public/tags", tagPublicRoutes);
-app.use("/api/admin", adminRoutes);
+app.use("/api/comments", commentRoutes);
 app.use("/api/subscribers", subscriberRoutes);
 
 // ... rest of your app.js
