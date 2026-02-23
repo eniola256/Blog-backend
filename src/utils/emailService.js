@@ -18,32 +18,60 @@ export const sendWelcomeEmail = async (email) => {
   
   const msg = {
     to: email,
-    from: process.env.EMAIL_USER, // Must be verified in SendGrid!
-    subject: "Welcome to Our Newsletter!",
+    from: {
+      email: process.env.EMAIL_USER,
+      name: "Your Blog Name" // ← Add sender name
+    },
+    replyTo: process.env.EMAIL_USER, // ← Add reply-to
+    subject: "✅ Welcome to [Your Blog Name]",
     html: `
       <!DOCTYPE html>
       <html>
       <head>
+        <meta charset="UTF-8">
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #007bff; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background: #f9f9f9; }
-          .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f4f4f4; }
+          .container { max-width: 600px; margin: 20px auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px 20px; text-align: center; }
+          .header h1 { margin: 0; font-size: 28px; }
+          .content { padding: 30px; }
+          .content h2 { color: #333; margin-top: 0; }
+          .benefits { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; }
+          .benefits li { margin: 10px 0; }
+          .button { display: inline-block; padding: 14px 28px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; margin: 20px 0; font-weight: 600; }
+          .footer { background: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #666; }
+          .footer a { color: #667eea; text-decoration: none; }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="header">
-            <h1>Welcome to Our Newsletter!</h1>
+            <h1>🎉 Welcome Aboard!</h1>
           </div>
           <div class="content">
-            <p>Thank you for subscribing to our blog newsletter!</p>
-            <p>You'll now receive updates about our latest posts, news, and exclusive content directly in your inbox.</p>
-            <p>Stay tuned for exciting updates!</p>
+            <h2>Hey there! 👋</h2>
+            <p>Thanks for joining our community! We're excited to have you.</p>
+            
+            <div class="benefits">
+              <strong>Here's what you'll get:</strong>
+              <ul style="margin: 10px 0; padding-left: 20px;">
+                <li>📬 Weekly roundup of our best content</li>
+                <li>💡 Exclusive tips and tutorials</li>
+                <li>🎯 Early access to new features</li>
+                <li>🚀 No spam, just quality content</li>
+              </ul>
+            </div>
+            
+            <p><strong>Pro tip:</strong> Add <code>${process.env.EMAIL_USER}</code> to your contacts so our emails always reach your inbox!</p>
+            
+            <center>
+              <a href="${process.env.FRONTEND_URL || 'https://your-blog.vercel.app'}" class="button">Visit Our Blog →</a>
+            </center>
           </div>
           <div class="footer">
-            <p>If you didn't subscribe, you can safely ignore this email.</p>
+            <p>You're receiving this because you subscribed at ${process.env.FRONTEND_URL || 'our blog'}</p>
+            <p><a href="${process.env.FRONTEND_URL}/unsubscribe?email=${encodeURIComponent(email)}">Unsubscribe</a> | <a href="${process.env.FRONTEND_URL}">View in Browser</a></p>
+            <p style="margin-top: 15px; color: #999;">© ${new Date().getFullYear()} Your Blog. All rights reserved.</p>
           </div>
         </div>
       </body>
