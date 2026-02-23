@@ -3,6 +3,8 @@ import Category from "../models/category.js";
 import Tag from "../models/tag.model.js";
 import mongoose from "mongoose";
 import slugify from "slugify";
+import { notifySubscribers } from "../utils/emailService.js";
+import Subscriber from "../models/Subscriber.js";
 
 // ========== CATEGORIES CRUD ==========
 
@@ -439,6 +441,33 @@ export const createPost = async (req, res) => {
     await post.populate("category", "name slug");
     await post.populate("tags", "name slug");
 
+    // ============ NEW: Notify subscribers if published ============
+    if (post.status === "published") {
+      console.log("📧 Post is published, preparing to notify subscribers...");
+      
+      try {
+        const subscribers = await Subscriber.find({ isSubscribed: true });
+        const emails = subscribers.map(sub => sub.email);
+        
+        if (emails.length > 0) {
+          console.log(`📧 Notifying ${emails.length} subscribers`);
+          
+          // Send notifications in background (don't wait for it)
+          notifySubscribers(post, emails).catch(err => {
+            console.error("❌ Failed to notify subscribers:", err);
+          });
+          
+          console.log("✅ Notification emails queued");
+        } else {
+          console.log("ℹ️ No subscribers to notify");
+        }
+      } catch (notifyError) {
+        // Don't fail the post creation if email fails
+        console.error("❌ Error preparing notifications:", notifyError);
+      }
+    }
+    // ============================================================
+
     res.status(201).json({
       success: true,
       post,
@@ -446,6 +475,41 @@ export const createPost = async (req, res) => {
   } catch (error) {
     console.error("CREATE POST ERROR:", error);
     res.status(500).json({ message: error.message || "Failed to create post" });
+  }
+};
+
+export const notifySubscribersAboutPost = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const post = await Post.findById(id)
+      .populate("category", "name slug")
+      .populate("tags", "name slug");
+    
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+    
+    if (post.status !== "published") {
+      return res.status(400).json({ message: "Post must be published" });
+    }
+    
+    const subscribers = await Subscriber.find({ isSubscribed: true });
+    const emails = subscribers.map(sub => sub.email);
+    
+    if (emails.length === 0) {
+      return res.json({ message: "No subscribers to notify" });
+    }
+    
+    await notifySubscribers(post, emails);
+    
+    res.json({ 
+      message: `Notified ${emails.length} subscribers`,
+      count: emails.length 
+    });
+  } catch (error) {
+    console.error("NOTIFY ERROR:", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
@@ -499,6 +563,11 @@ export const updatePost = async (req, res) => {
       featuredImage = `data:${req.file.mimetype};base64,${base64Image}`;
     }
 
+    // Check if status changed from draft to published
+    const wasPublished = post.status === "published";
+    const nowPublished = (status || post.status) === "published";
+    const justPublished = !wasPublished && nowPublished;
+
     const updatedPost = await Post.findByIdAndUpdate(
       id,
       {
@@ -516,6 +585,31 @@ export const updatePost = async (req, res) => {
     await updatedPost.populate("author", "name email");
     await updatedPost.populate("category", "name slug");
     await updatedPost.populate("tags", "name slug");
+
+    // ============ NEW: Notify subscribers if just published ============
+    if (justPublished) {
+      console.log("📧 Post just published, preparing to notify subscribers...");
+      
+      try {
+        const subscribers = await Subscriber.find({ isSubscribed: true });
+        const emails = subscribers.map(sub => sub.email);
+        
+        if (emails.length > 0) {
+          console.log(`📧 Notifying ${emails.length} subscribers`);
+          
+          notifySubscribers(updatedPost, emails).catch(err => {
+            console.error("❌ Failed to notify subscribers:", err);
+          });
+          
+          console.log("✅ Notification emails queued");
+        } else {
+          console.log("ℹ️ No subscribers to notify");
+        }
+      } catch (notifyError) {
+        console.error("❌ Error preparing notifications:", notifyError);
+      }
+    }
+    // ===================================================================
 
     res.json({
       success: true,
