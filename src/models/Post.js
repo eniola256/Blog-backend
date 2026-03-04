@@ -60,5 +60,7 @@ PostSchema.pre("save", async function () {
 /* ✅ INDEXES */
 PostSchema.index({ status: 1, createdAt: -1 });
 PostSchema.index({ author: 1, createdAt: -1 });
+PostSchema.index({ category: 1, status: 1, createdAt: -1 });
+PostSchema.index({ tags: 1, status: 1, createdAt: -1 });
 
 export default mongoose.model("Post", PostSchema);

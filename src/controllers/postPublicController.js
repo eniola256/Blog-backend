@@ -3,12 +3,27 @@ import User from '../models/User.js';
 import Tag from '../models/tag.model.js';
 import Category from '../models/category.js';
 
+const stripHtml = (value = "") => value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+const getExcerpt = (value = "", maxLength = 180) => {
+  const text = stripHtml(value);
+  if (!text) return "";
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength).trim()}...`;
+};
+const getReadTime = (value = "") => {
+  const words = stripHtml(value).split(" ").filter(Boolean).length;
+  const minutes = Math.max(1, Math.ceil(words / 200));
+  return `${minutes} min read`;
+};
+
 export const getPublishedPosts = async (req, res) => {
   console.log("➡️  getPublishedPosts called");
   try {
     // Pagination
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const parsedPage = parseInt(req.query.page, 10);
+    const parsedLimit = parseInt(req.query.limit, 10);
+    const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+    const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 24) : 10;
     const skip = (page - 1) * limit;
 
     // Filters from query
@@ -51,7 +66,7 @@ export const getPublishedPosts = async (req, res) => {
     if (authorName) {
       const authors = await User.find({
         name: { $regex: authorName, $options: "i" }
-      }).select("_id");
+      }).select("_id").lean();
 
       if (authors.length === 0) {
         return res.json({
@@ -109,22 +124,30 @@ export const getPublishedPosts = async (req, res) => {
 
     // Fetch posts with pagination
     const posts = await Post.find(query)
+      .select("title slug content featuredImage createdAt author category tags")
       .populate("author", "name role")
       .populate("category", "name slug")
       .populate("tags", "name slug")
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .lean();
 
     // Total count for pagination
     const totalPosts = await Post.countDocuments(query);
+    const lightweightPosts = posts.map((post) => ({
+      ...post,
+      excerpt: getExcerpt(post.content),
+      readTime: getReadTime(post.content),
+      content: undefined,
+    }));
 
     // Return response
     res.json({
       page,
       totalPages: Math.ceil(totalPosts / limit),
       totalPosts,
-      posts
+      posts: lightweightPosts
     });
 
   } catch (error) {
@@ -142,7 +165,8 @@ export const getPublishedPostBySlug = async (req, res) => {
     })
     .populate('author', 'name')
     .populate('category', 'name slug')
-    .populate("tags", "name slug");
+    .populate("tags", "name slug")
+    .lean();
 
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
