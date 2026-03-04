@@ -14,15 +14,24 @@ export const getPublishedPosts = async (req, res) => {
     // Filters from query
     const search = req.query.search || "";
     const authorName = req.query.author || "";
-    const tagSlug = req.query.tag || "";
-    const categorySlug = req.query.category || "";
+    const tagFilter = req.query.tag || "";
+    const categoryFilter = req.query.category || "";
+    const excludeFilter = req.query.exclude || "";
 
     // Base query
     const query = { status: "published" };
 
-    // Filter by category slug
-    if (categorySlug) {
-      const category = await Category.findOne({ slug: categorySlug });
+    // Filter by category (accept slug or _id)
+    if (categoryFilter) {
+      let category = null;
+
+      if (categoryFilter.match(/^[0-9a-fA-F]{24}$/)) {
+        category = await Category.findById(categoryFilter);
+      }
+
+      if (!category) {
+        category = await Category.findOne({ slug: categoryFilter });
+      }
 
       if (!category) {
         return res.status(404).json({
@@ -56,9 +65,15 @@ export const getPublishedPosts = async (req, res) => {
       query.author = { $in: authors.map(a => a._id) };
     }
 
-    // Filter by tag
-    if (tagSlug) {
-      const tag = await Tag.findOne({ slug: tagSlug });
+    // Filter by tag (accept slug or _id)
+    if (tagFilter) {
+      let tag = null;
+      if (tagFilter.match(/^[0-9a-fA-F]{24}$/)) {
+        tag = await Tag.findById(tagFilter);
+      }
+      if (!tag) {
+        tag = await Tag.findOne({ slug: tagFilter });
+      }
       if (!tag) {
         return res.json({
           page,
@@ -68,6 +83,28 @@ export const getPublishedPosts = async (req, res) => {
         });
       }
       query.tags = tag._id;
+    }
+
+    // Exclude posts by _id or slug (comma-separated supported)
+    if (excludeFilter) {
+      const excludes = excludeFilter
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      const excludeObjectIds = excludes.filter((item) => item.match(/^[0-9a-fA-F]{24}$/));
+      const excludeSlugs = excludes.filter((item) => !item.match(/^[0-9a-fA-F]{24}$/));
+
+      if (excludeObjectIds.length > 0 && excludeSlugs.length > 0) {
+        query.$and = [
+          { _id: { $nin: excludeObjectIds } },
+          { slug: { $nin: excludeSlugs } },
+        ];
+      } else if (excludeObjectIds.length > 0) {
+        query._id = { $nin: excludeObjectIds };
+      } else if (excludeSlugs.length > 0) {
+        query.slug = { $nin: excludeSlugs };
+      }
     }
 
     // Fetch posts with pagination
