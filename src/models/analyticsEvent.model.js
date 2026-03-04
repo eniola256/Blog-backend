@@ -66,7 +66,6 @@ const analyticsEventSchema = new mongoose.Schema(
     dedupeKey: {
       type: String,
       default: null,
-      index: true,
     },
     occurredAt: {
       type: Date,
