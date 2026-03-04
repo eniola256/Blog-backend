@@ -5,6 +5,7 @@ import mongoose from "mongoose";
 import slugify from "slugify";
 import { notifySubscribers } from "../utils/emailService.js";
 import Subscriber from "../models/Subscriber.js";
+import AnalyticsEvent from "../models/analyticsEvent.model.js";
 
 // ========== CATEGORIES CRUD ==========
 
@@ -664,6 +665,16 @@ export const getStats = async (req, res) => {
     const draftPosts = await Post.countDocuments({ status: "draft" });
     const categoriesCount = await Category.countDocuments();
     const tagsCount = await Tag.countDocuments();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const analyticsMatch = { occurredAt: { $gte: thirtyDaysAgo } };
+
+    const [uniqueVisitors, postViews, readCompletes] = await Promise.all([
+      AnalyticsEvent.distinct("sessionId", analyticsMatch).then((items) => items.length),
+      AnalyticsEvent.countDocuments({ ...analyticsMatch, eventName: "post_view" }),
+      AnalyticsEvent.countDocuments({ ...analyticsMatch, eventName: "read_complete" }),
+    ]);
+    const completionRate = postViews > 0 ? Number(((readCompletes / postViews) * 100).toFixed(2)) : 0;
 
     res.json({
       totalPosts,
@@ -671,6 +682,13 @@ export const getStats = async (req, res) => {
       draftPosts,
       categoriesCount,
       tagsCount,
+      analytics: {
+        rangeDays: 30,
+        uniqueVisitors,
+        postViews,
+        readCompletes,
+        completionRate,
+      },
     });
   } catch (error) {
     console.error('GET STATS ERROR:', error);

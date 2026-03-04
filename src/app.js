@@ -18,6 +18,7 @@ import cors from "cors";
 import tagPublicRoutes from "./routes/tagPublic.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import subscriberRoutes from "./routes/subscriber.routes.js";
+import analyticsRoutes from "./routes/analytics.routes.js";
 
 // Setup __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -52,6 +53,7 @@ app.use("/api/admin", adminRoutes);  // ← Move this UP
 app.use("/api/public/posts", postPublicRoutes);
 app.use("/api/public/categories", categoryPublicRoutes);
 app.use("/api/public/tags", tagPublicRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 // GENERIC routes (less specific, come last)
 app.use("/api/posts", postRoutes);

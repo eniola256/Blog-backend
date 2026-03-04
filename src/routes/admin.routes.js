@@ -19,6 +19,7 @@ import {
   deletePost,
   getStats,
 } from "../controllers/admin.controller.js";
+import { getAnalyticsOverview } from "../controllers/analytics.controller.js";
 
 const router = express.Router();
 
@@ -79,5 +80,6 @@ router.delete("/posts/:id", deletePost);
 
 // GET /api/admin/stats - Get dashboard stats
 router.get("/stats", getStats);
+router.get("/analytics/overview", getAnalyticsOverview);
 
 export default router;
