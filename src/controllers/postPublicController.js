@@ -15,6 +15,14 @@ const getReadTime = (value = "") => {
   const minutes = Math.max(1, Math.ceil(words / 200));
   return `${minutes} min read`;
 };
+const getOptimizedListImage = (value) => {
+  if (!value) return null;
+  // Large data URLs hurt LCP badly on mobile list pages.
+  if (typeof value === "string" && value.startsWith("data:image/") && value.length > 80_000) {
+    return null;
+  }
+  return value;
+};
 
 export const getPublishedPosts = async (req, res) => {
   console.log("➡️  getPublishedPosts called");
@@ -139,6 +147,7 @@ export const getPublishedPosts = async (req, res) => {
       ...post,
       excerpt: getExcerpt(post.content),
       readTime: getReadTime(post.content),
+      featuredImage: getOptimizedListImage(post.featuredImage),
       content: undefined,
     }));
 
