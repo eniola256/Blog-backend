@@ -6,80 +6,139 @@ import Category from "../models/category.js";
 import Subscriber from "../models/Subscriber.js";
 import { notifySubscribers } from "../utils/emailService.js";
 
+const resolveStatus = (body, fallback = "draft") => {
+  const rawStatus = body?.targetStatus ?? body?.status;
+  if (typeof rawStatus === "string" && rawStatus.trim()) {
+    return rawStatus.trim();
+  }
+  return fallback;
+};
+
+const isPublishedStatus = (status) => status === "published";
+const parseBoolean = (value) => value === true || value === "true";
+
 /**
- * Validates that all tag IDs exist in the database
+ * Normalize tag inputs to tag IDs (creates missing tags by name)
  */
-const validateTags = async (tags = []) => {
+const normalizeTags = async (tags) => {
+  if (tags === undefined || tags === null) return undefined;
   if (!Array.isArray(tags)) {
     throw new Error("Tags must be an array");
   }
+  if (tags.length === 0) return [];
 
-  if (tags.length === 0) return;
+  const tagIds = [];
+  const tagNames = new Set();
 
-  // Validate ObjectId format
-  const invalidIds = tags.filter(id => !mongoose.Types.ObjectId.isValid(id));
-  if (invalidIds.length > 0) {
-    throw new Error("One or more tag IDs are invalid");
+  for (const tag of tags) {
+    if (mongoose.Types.ObjectId.isValid(tag)) {
+      tagIds.push(String(tag));
+    } else if (typeof tag === "string" && tag.trim()) {
+      tagNames.add(tag.trim().toLowerCase());
+    } else {
+      throw new Error("Invalid tag value");
+    }
   }
 
-  // Check existence in DB
-  const existingTagsCount = await Tag.countDocuments({
-    _id: { $in: tags }
-  });
-
-  if (existingTagsCount !== tags.length) {
-    throw new Error("One or more tags do not exist");
+  if (tagIds.length > 0) {
+    const existingTagsCount = await Tag.countDocuments({ _id: { $in: tagIds } });
+    if (existingTagsCount !== tagIds.length) {
+      throw new Error("One or more tags do not exist");
+    }
   }
+
+  const normalizedIds = [...tagIds];
+  for (const name of tagNames) {
+    const existing = await Tag.findOne({ name });
+    if (existing) {
+      normalizedIds.push(String(existing._id));
+    } else {
+      const created = await Tag.create({ name });
+      normalizedIds.push(String(created._id));
+    }
+  }
+
+  return [...new Set(normalizedIds)];
 };
 
 
 export const createPost = async (req, res) => {
   try {
-    const { title, content, slug, category, tags, featuredImage } = req.body;
+    const { title, content, slug, category, tags, featuredImage, metaDescription, focusKeyword } = req.body;
+    const status = resolveStatus(req.body, "draft");
+    const isPublishing = isPublishedStatus(status);
 
-    // 1. Category must exist
-    if (!category) {
+    let normalizedTags = tags;
+    if (normalizedTags !== undefined) {
+      if (typeof normalizedTags === "string") normalizedTags = normalizedTags ? [normalizedTags] : [];
+      else if (!Array.isArray(normalizedTags)) normalizedTags = [];
+    } else {
+      normalizedTags = [];
+    }
+
+    const normalizedTitle = typeof title === "string" ? title.trim() : "";
+    const normalizedContent = typeof content === "string" ? content.trim() : "";
+    const normalizedCategory = typeof category === "string" ? category.trim() : category;
+
+    if (isPublishing && (!normalizedTitle || !normalizedContent || !normalizedCategory)) {
       return res.status(400).json({
-        message: "Category is required"
+        message: "Title, content, and category are required to publish",
       });
     }
 
-    const postSlug = slug || slugify(title, { lower: true, strict: true });
+    if (normalizedCategory) {
+      if (!mongoose.Types.ObjectId.isValid(normalizedCategory)) {
+        return res.status(400).json({
+          message: "Invalid category ID",
+        });
+      }
 
-    // 2. Validate ObjectId
-    if (!mongoose.Types.ObjectId.isValid(category)) {
-      return res.status(400).json({
-        message: "Invalid category ID"
-      });
+      const categoryExists = await Category.findById(normalizedCategory);
+      if (!categoryExists) {
+        return res.status(400).json({
+          message: "Category not found",
+        });
+      }
     }
 
-    // 3. Ensure category exists
-    const categoryExists = await Category.findById(category);
-    if (!categoryExists) {
-      return res.status(400).json({
-        message: "Category not found"
-      });
+    let postSlug;
+    const normalizedSlug = typeof slug === "string" ? slug.trim() : "";
+    if (normalizedSlug) {
+      postSlug = slugify(normalizedSlug, { lower: true, strict: true });
+    } else if (normalizedTitle) {
+      postSlug = slugify(normalizedTitle, { lower: true, strict: true });
     }
 
-    const existingPost = await Post.findOne({ slug: postSlug });
-    if (existingPost) {
-      return res.status(409).json({
-        message: "A post with this slug already exists"
-      });
+    if (postSlug) {
+      const existingPost = await Post.findOne({ slug: postSlug });
+      if (existingPost) {
+        return res.status(409).json({
+          message: "A post with this slug already exists",
+        });
+      }
     }
 
-    // Validate tags
-    await validateTags(tags);  
+    normalizedTags = await normalizeTags(normalizedTags);
 
-    
-    // 4. Create post (tags already validated earlier)
+    let resolvedFeaturedImage = featuredImage;
+    if (typeof resolvedFeaturedImage === "string" && resolvedFeaturedImage.trim()) {
+      resolvedFeaturedImage = resolvedFeaturedImage.trim();
+    } else if (typeof req.body.image === "string" && req.body.image.trim()) {
+      resolvedFeaturedImage = req.body.image.trim();
+    } else {
+      resolvedFeaturedImage = undefined;
+    }
+
     const post = await Post.create({
       title,
       content,
       slug: postSlug,
-      category,
-      tags,
-      featuredImage,
+      category: normalizedCategory || undefined,
+      tags: normalizedTags,
+      featuredImage: resolvedFeaturedImage,
+      metaDescription: typeof metaDescription === "string" ? metaDescription : undefined,
+      focusKeyword: typeof focusKeyword === "string" ? focusKeyword : undefined,
+      status,
       author: req.user._id
     });
 
@@ -182,33 +241,144 @@ export const updatePost = async (req, res) => {
       return res.status(403).json({ message: "Not authorized" });
     }
 
-     // If slug is being updated, check for duplicates
-    if (req.body.slug && req.body.slug !== post.slug) {
-      const existingPost = await Post.findOne({ slug: req.body.slug });
-      if (existingPost) {
-        return res.status(409).json({
-          message: "A post with this slug already exists"
-        });
-      }
-    }
-    // CATEGORY VALIDATION (only if provided)
-    if (req.body.category) {
-      const category = req.body.category;
+    const nextStatus = resolveStatus(req.body, post.status);
+    req.body.status = nextStatus;
+    const keepPublished = parseBoolean(req.body.keepPublished);
+    const revisionId = req.body.revisionId || req.body.draftId;
+    if (req.body.keepPublished !== undefined) delete req.body.keepPublished;
+    if (req.body.revisionId !== undefined) delete req.body.revisionId;
+    if (req.body.draftId !== undefined) delete req.body.draftId;
+    if (req.body.targetStatus !== undefined) delete req.body.targetStatus;
+    const shouldCreateRevision =
+      post.status === "published" && nextStatus === "draft" && keepPublished;
 
-      if (!mongoose.Types.ObjectId.isValid(category)) {
+    // Normalize slug if provided
+    if (!shouldCreateRevision) {
+      const normalizedSlug = typeof req.body.slug === "string" ? req.body.slug.trim() : "";
+      if (normalizedSlug) {
+        const slugToUse = slugify(normalizedSlug, { lower: true, strict: true });
+        if (slugToUse !== post.slug) {
+          const existingPost = await Post.findOne({ slug: slugToUse });
+          if (existingPost) {
+            return res.status(409).json({
+              message: "A post with this slug already exists"
+            });
+          }
+        }
+        req.body.slug = slugToUse;
+      } else if (normalizedSlug === "") {
+        delete req.body.slug;
+      }
+    } else if (req.body.slug !== undefined) {
+      delete req.body.slug;
+    }
+
+    // CATEGORY VALIDATION (only if provided)
+    let normalizedCategory =
+      typeof req.body.category === "string" ? req.body.category.trim() : req.body.category;
+    if (normalizedCategory === "") {
+      normalizedCategory = undefined;
+    }
+    if (normalizedCategory) {
+      if (!mongoose.Types.ObjectId.isValid(normalizedCategory)) {
         return res.status(400).json({
           message: "Invalid category ID"
         });
       }
 
-      const categoryExists = await Category.findById(category);
+      const categoryExists = await Category.findById(normalizedCategory);
       if (!categoryExists) {
         return res.status(400).json({
           message: "Category not found"
         });
       }
+      req.body.category = normalizedCategory;
+    } else if (normalizedCategory === undefined) {
+      delete req.body.category;
     }
-    
+
+    if (req.body.tags !== undefined) {
+      if (typeof req.body.tags === "string") {
+        req.body.tags = req.body.tags ? [req.body.tags] : [];
+      } else if (!Array.isArray(req.body.tags)) {
+        req.body.tags = [];
+      }
+      if (req.body.tags.length > 0) {
+        req.body.tags = await normalizeTags(req.body.tags);
+      }
+    }
+
+    if (typeof req.body.image === "string" && req.body.image.trim() && !req.body.featuredImage) {
+      req.body.featuredImage = req.body.image.trim();
+    }
+    if (
+      req.body.featuredImage === null ||
+      req.body.featuredImage === "null" ||
+      req.body.featuredImage === ""
+    ) {
+      req.body.featuredImage = null;
+    } else if (typeof req.body.featuredImage === "string" && !req.body.featuredImage.trim()) {
+      delete req.body.featuredImage;
+    }
+
+    const nextTitle = req.body.title !== undefined ? req.body.title : post.title;
+    const nextContent = req.body.content !== undefined ? req.body.content : post.content;
+    const finalCategory = normalizedCategory !== undefined ? normalizedCategory : post.category;
+
+    if (shouldCreateRevision) {
+      let revisionPost = null;
+      if (revisionId && mongoose.Types.ObjectId.isValid(revisionId)) {
+        revisionPost = await Post.findOne({
+          _id: revisionId,
+          revisionOf: post._id,
+          status: "draft",
+        });
+      }
+      if (!revisionPost) {
+        revisionPost = await Post.findOne({
+          revisionOf: post._id,
+          status: "draft",
+        }).sort({ updatedAt: -1 });
+      }
+
+      const revisionPayload = {
+        title: nextTitle,
+        content: nextContent,
+        category: finalCategory,
+        tags: req.body.tags !== undefined ? req.body.tags : post.tags,
+        status: "draft",
+        featuredImage: req.body.featuredImage !== undefined ? req.body.featuredImage : post.featuredImage,
+        metaDescription:
+          req.body.metaDescription !== undefined ? req.body.metaDescription : post.metaDescription,
+        focusKeyword:
+          req.body.focusKeyword !== undefined ? req.body.focusKeyword : post.focusKeyword,
+        revisionOf: post._id,
+        author: post.author,
+      };
+
+      if (!revisionPost) {
+        revisionPost = await Post.create(revisionPayload);
+      } else {
+        Object.assign(revisionPost, revisionPayload);
+        await revisionPost.save();
+      }
+
+      return res.status(200).json({
+        success: true,
+        post: revisionPost,
+        isRevision: true,
+      });
+    }
+
+    if (isPublishedStatus(nextStatus)) {
+      const normalizedTitle = typeof nextTitle === "string" ? nextTitle.trim() : "";
+      const normalizedContent = typeof nextContent === "string" ? nextContent.trim() : "";
+      if (!normalizedTitle || !normalizedContent || !finalCategory) {
+        return res.status(400).json({
+          message: "Title, content, and category are required to publish"
+        });
+      }
+    }
 
     Object.assign(post, req.body);
     await post.save();
@@ -305,6 +475,15 @@ export const publishPost = async (req, res) => {
     }
 
     const wasDraft = post.status === "draft";
+    if (wasDraft) {
+      const normalizedTitle = typeof post.title === "string" ? post.title.trim() : "";
+      const normalizedContent = typeof post.content === "string" ? post.content.trim() : "";
+      if (!normalizedTitle || !normalizedContent || !post.category) {
+        return res.status(400).json({
+          message: "Title, content, and category are required to publish"
+        });
+      }
+    }
     
     // Toggle status
     post.status = post.status === "published" ? "draft" : "published";
