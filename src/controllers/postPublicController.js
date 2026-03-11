@@ -24,6 +24,17 @@ const getOptimizedListImage = (value) => {
   return value;
 };
 
+const transformImageUrl = (value, req) => {
+  if (!value) return null;
+  // If it's already a full URL or a data URI, return as-is
+  if (value.startsWith('http') || value.startsWith('data:')) {
+    return value;
+  }
+  // Otherwise, transform relative path to absolute URL
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  return `${baseUrl}${value}`;
+};
+
 export const getPublishedPosts = async (req, res) => {
   console.log("➡️  getPublishedPosts called");
   try {
@@ -147,7 +158,7 @@ export const getPublishedPosts = async (req, res) => {
       ...post,
       excerpt: getExcerpt(post.content),
       readTime: getReadTime(post.content),
-      featuredImage: getOptimizedListImage(post.featuredImage),
+      featuredImage: transformImageUrl(getOptimizedListImage(post.featuredImage), req),
       content: undefined,
     }));
 
@@ -183,7 +194,10 @@ export const getPublishedPostBySlug = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      post
+      post: {
+        ...post,
+        featuredImage: transformImageUrl(post.featuredImage, req)
+      }
     });
   } catch (error) {
     console.error(error);
