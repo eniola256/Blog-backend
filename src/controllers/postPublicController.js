@@ -3,6 +3,7 @@ import User from '../models/User.js';
 import Tag from '../models/tag.model.js';
 import Category from '../models/category.js';
 
+
 const stripHtml = (value = "") => value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 const getExcerpt = (value = "", maxLength = 180) => {
   const text = stripHtml(value);
@@ -30,9 +31,6 @@ const transformImageUrl = (value, req) => {
   if (value.startsWith('http') || value.startsWith('data:')) {
     return value;
   }
-  // Otherwise, transform relative path to absolute URL
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
-  return `${baseUrl}${value}`;
 };
 
 export const getPublishedPosts = async (req, res) => {

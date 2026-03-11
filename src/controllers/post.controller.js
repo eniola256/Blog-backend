@@ -5,6 +5,7 @@ import Tag from "../models/tag.model.js";
 import Category from "../models/category.js";
 import Subscriber from "../models/Subscriber.js";
 import { notifySubscribers } from "../utils/emailService.js";
+import { uploadImage, deleteImage } from '../utils/cloudinary.js';
 
 const resolveStatus = (body, fallback = "draft") => {
   const rawStatus = body?.targetStatus ?? body?.status;
@@ -88,16 +89,11 @@ export const createPost = async (req, res) => {
 
     if (normalizedCategory) {
       if (!mongoose.Types.ObjectId.isValid(normalizedCategory)) {
-        return res.status(400).json({
-          message: "Invalid category ID",
-        });
+        return res.status(400).json({ message: "Invalid category ID" });
       }
-
       const categoryExists = await Category.findById(normalizedCategory);
       if (!categoryExists) {
-        return res.status(400).json({
-          message: "Category not found",
-        });
+        return res.status(400).json({ message: "Category not found" });
       }
     }
 
@@ -108,26 +104,25 @@ export const createPost = async (req, res) => {
     } else if (normalizedTitle) {
       postSlug = slugify(normalizedTitle, { lower: true, strict: true });
     }
-
     if (postSlug) {
       const existingPost = await Post.findOne({ slug: postSlug });
       if (existingPost) {
-        return res.status(409).json({
-          message: "A post with this slug already exists",
-        });
+        return res.status(409).json({ message: "A post with this slug already exists" });
       }
     }
 
     normalizedTags = await normalizeTags(normalizedTags);
 
-    let resolvedFeaturedImage = featuredImage;
-    if (typeof resolvedFeaturedImage === "string" && resolvedFeaturedImage.trim()) {
-      resolvedFeaturedImage = resolvedFeaturedImage.trim();
+    // ── Cloudinary image handling ──────────────────────────────────────────
+    let rawImage = null;
+    if (typeof featuredImage === "string" && featuredImage.trim()) {
+      rawImage = featuredImage.trim();
     } else if (typeof req.body.image === "string" && req.body.image.trim()) {
-      resolvedFeaturedImage = req.body.image.trim();
-    } else {
-      resolvedFeaturedImage = undefined;
+      rawImage = req.body.image.trim();
     }
+
+    const resolvedFeaturedImage = rawImage ? await uploadImage(rawImage) : undefined;
+    // ── End image handling ─────────────────────────────────────────────────
 
     const post = await Post.create({
       title,
@@ -139,18 +134,13 @@ export const createPost = async (req, res) => {
       metaDescription: typeof metaDescription === "string" ? metaDescription : undefined,
       focusKeyword: typeof focusKeyword === "string" ? focusKeyword : undefined,
       status,
-      author: req.user._id
+      author: req.user._id,
     });
 
-    res.status(201).json({
-      success: true,
-      post
-    });
+    res.status(201).json({ success: true, post });
   } catch (error) {
-    console.error("❌ CREATE POST ERROR:", error); // 👈 ADD THIS LINE
-    res.status(500).json({
-      message: error.message || "Failed to create post" // 👈 CHANGE THIS LINE
-    });
+    console.error("❌ CREATE POST ERROR:", error);
+    res.status(500).json({ message: error.message || "Failed to create post" });
   }
 };
 
@@ -260,9 +250,7 @@ export const updatePost = async (req, res) => {
         if (slugToUse !== post.slug) {
           const existingPost = await Post.findOne({ slug: slugToUse });
           if (existingPost) {
-            return res.status(409).json({
-              message: "A post with this slug already exists"
-            });
+            return res.status(409).json({ message: "A post with this slug already exists" });
           }
         }
         req.body.slug = slugToUse;
@@ -276,21 +264,14 @@ export const updatePost = async (req, res) => {
     // CATEGORY VALIDATION (only if provided)
     let normalizedCategory =
       typeof req.body.category === "string" ? req.body.category.trim() : req.body.category;
-    if (normalizedCategory === "") {
-      normalizedCategory = undefined;
-    }
+    if (normalizedCategory === "") normalizedCategory = undefined;
     if (normalizedCategory) {
       if (!mongoose.Types.ObjectId.isValid(normalizedCategory)) {
-        return res.status(400).json({
-          message: "Invalid category ID"
-        });
+        return res.status(400).json({ message: "Invalid category ID" });
       }
-
       const categoryExists = await Category.findById(normalizedCategory);
       if (!categoryExists) {
-        return res.status(400).json({
-          message: "Category not found"
-        });
+        return res.status(400).json({ message: "Category not found" });
       }
       req.body.category = normalizedCategory;
     } else if (normalizedCategory === undefined) {
@@ -308,18 +289,36 @@ export const updatePost = async (req, res) => {
       }
     }
 
+    // ── Cloudinary image handling ──────────────────────────────────────────
     if (typeof req.body.image === "string" && req.body.image.trim() && !req.body.featuredImage) {
       req.body.featuredImage = req.body.image.trim();
     }
+
     if (
       req.body.featuredImage === null ||
       req.body.featuredImage === "null" ||
       req.body.featuredImage === ""
     ) {
+      // User explicitly cleared the image — delete old one from Cloudinary
+      if (post.featuredImage) await deleteImage(post.featuredImage);
       req.body.featuredImage = null;
+    } else if (typeof req.body.featuredImage === "string" && req.body.featuredImage.trim()) {
+      const incoming = req.body.featuredImage.trim();
+      const isNewImage = incoming !== post.featuredImage;
+
+      if (isNewImage) {
+        // Upload new image to Cloudinary
+        req.body.featuredImage = await uploadImage(incoming);
+        // Delete the old Cloudinary image (if it was one)
+        if (post.featuredImage) await deleteImage(post.featuredImage);
+      } else {
+        // Same image — no upload needed
+        delete req.body.featuredImage;
+      }
     } else if (typeof req.body.featuredImage === "string" && !req.body.featuredImage.trim()) {
       delete req.body.featuredImage;
     }
+    // ── End image handling ─────────────────────────────────────────────────
 
     const nextTitle = req.body.title !== undefined ? req.body.title : post.title;
     const nextContent = req.body.content !== undefined ? req.body.content : post.content;
@@ -347,11 +346,10 @@ export const updatePost = async (req, res) => {
         category: finalCategory,
         tags: req.body.tags !== undefined ? req.body.tags : post.tags,
         status: "draft",
+        // Use the already-uploaded Cloudinary URL if image was updated, else keep existing
         featuredImage: req.body.featuredImage !== undefined ? req.body.featuredImage : post.featuredImage,
-        metaDescription:
-          req.body.metaDescription !== undefined ? req.body.metaDescription : post.metaDescription,
-        focusKeyword:
-          req.body.focusKeyword !== undefined ? req.body.focusKeyword : post.focusKeyword,
+        metaDescription: req.body.metaDescription !== undefined ? req.body.metaDescription : post.metaDescription,
+        focusKeyword: req.body.focusKeyword !== undefined ? req.body.focusKeyword : post.focusKeyword,
         revisionOf: post._id,
         author: post.author,
       };
@@ -363,11 +361,7 @@ export const updatePost = async (req, res) => {
         await revisionPost.save();
       }
 
-      return res.status(200).json({
-        success: true,
-        post: revisionPost,
-        isRevision: true,
-      });
+      return res.status(200).json({ success: true, post: revisionPost, isRevision: true });
     }
 
     if (isPublishedStatus(nextStatus)) {
@@ -375,7 +369,7 @@ export const updatePost = async (req, res) => {
       const normalizedContent = typeof nextContent === "string" ? nextContent.trim() : "";
       if (!normalizedTitle || !normalizedContent || !finalCategory) {
         return res.status(400).json({
-          message: "Title, content, and category are required to publish"
+          message: "Title, content, and category are required to publish",
         });
       }
     }
@@ -383,15 +377,12 @@ export const updatePost = async (req, res) => {
     Object.assign(post, req.body);
     await post.save();
 
-    res.status(200).json({
-      success: true,
-      post
-    });
+    res.status(200).json({ success: true, post });
   } catch (error) {
+    console.error("UPDATE POST ERROR:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
-
 
 export const deletePost = async (req, res) => {
   try {
