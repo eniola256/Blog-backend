@@ -141,7 +141,7 @@ export const getPublishedPosts = async (req, res) => {
 
     // Fetch posts with pagination
     const posts = await Post.find(query)
-      .select("title slug content featuredImage createdAt author category tags")
+      .select("title slug content featuredImage createdAt author category tags metaDescription")
       .populate("author", "name role")
       .populate("category", "name slug")
       .populate("tags", "name slug")
