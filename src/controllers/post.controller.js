@@ -181,20 +181,22 @@ export const getAllPosts = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-     // ✅ Build filter object
     const filter = { status: "published" };
-    
-    // ✅ Filter by category if provided
-    if (req.query.category) {
-      filter.category = req.query.category;
-    }
-    
-    // ✅ Filter by tag if provided
-    if (req.query.tag) {
-      filter.tags = req.query.tag;
+
+    if (req.query.category) filter.category = req.query.category;
+    if (req.query.tag) filter.tags = req.query.tag;
+
+    // ADD THIS - handle exclude
+    if (req.query.exclude) {
+      const excludeIds = req.query.exclude
+        .split(",")
+        .filter(id => mongoose.Types.ObjectId.isValid(id));
+      if (excludeIds.length > 0) {
+        filter._id = { $nin: excludeIds };
+      }
     }
 
-    const posts = await Post.find(filter) // ✅ Only published
+    const posts = await Post.find(filter)
       .populate("author", "name role")
       .populate("category", "name slug")
       .populate("tags", "name slug")
@@ -202,7 +204,7 @@ export const getAllPosts = async (req, res) => {
       .skip(skip)
       .limit(limit);
 
-    const total = await Post.countDocuments(filter); // ✅ Count only published
+    const total = await Post.countDocuments(filter);
 
     res.json({
       page,
