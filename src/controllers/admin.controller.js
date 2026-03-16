@@ -6,6 +6,7 @@ import slugify from "slugify";
 import { notifySubscribers } from "../utils/emailService.js";
 import Subscriber from "../models/Subscriber.js";
 import AnalyticsEvent from "../models/analyticsEvent.model.js";
+import { uploadImage, deleteImage } from "../utils/cloudinary.js";
 
 const resolveStatus = (body, fallback = "draft") => {
   const rawStatus = body?.targetStatus ?? body?.status;
@@ -493,6 +494,8 @@ export const createPost = async (req, res) => {
       featuredImage = req.body.image.trim();
     }
 
+    const resolvedFeaturedImage = featuredImage ? await uploadImage(featuredImage) : null;
+
     const post = await Post.create({
       title,
       content,
@@ -500,7 +503,7 @@ export const createPost = async (req, res) => {
       category: normalizedCategory || undefined,
       tags,
       status,
-      featuredImage,
+      featuredImage: resolvedFeaturedImage,
       metaDescription: typeof metaDescription === "string" ? metaDescription : undefined,
       focusKeyword: typeof focusKeyword === "string" ? focusKeyword : undefined,
       author: req.user._id,
@@ -649,21 +652,36 @@ export const updatePost = async (req, res) => {
       }
     }
 
-    let featuredImage = post.featuredImage;
-    if (req.file) {
-      const base64Image = req.file.buffer.toString("base64");
-      featuredImage = `data:${req.file.mimetype};base64,${base64Image}`;
-    } else if (
+    // ── Cloudinary image intent ──────────────────────────────────────────
+    const shouldClearFeaturedImage =
       req.body.featuredImage === null ||
       req.body.featuredImage === "null" ||
-      req.body.featuredImage === ""
-    ) {
-      featuredImage = null;
-    } else if (typeof req.body.featuredImage === "string" && req.body.featuredImage.trim()) {
-      featuredImage = req.body.featuredImage.trim();
-    } else if (typeof req.body.image === "string" && req.body.image.trim()) {
-      featuredImage = req.body.image.trim();
-    }
+      req.body.featuredImage === "";
+
+    const imageIntent = (() => {
+      if (req.file) {
+        const base64Image = req.file.buffer.toString("base64");
+        return {
+          type: "set",
+          value: `data:${req.file.mimetype};base64,${base64Image}`,
+        };
+      }
+
+      if (shouldClearFeaturedImage) {
+        return { type: "clear" };
+      }
+
+      if (typeof req.body.featuredImage === "string" && req.body.featuredImage.trim()) {
+        return { type: "set", value: req.body.featuredImage.trim() };
+      }
+
+      if (typeof req.body.image === "string" && req.body.image.trim()) {
+        return { type: "set", value: req.body.image.trim() };
+      }
+
+      return { type: "none" };
+    })();
+    // ── End image intent ────────────────────────────────────────────────
 
     const nextTitle = title !== undefined ? title : post.title;
     const nextContent = content !== undefined ? content : post.content;
@@ -685,13 +703,31 @@ export const updatePost = async (req, res) => {
         }).sort({ updatedAt: -1 });
       }
 
+      const revisionCurrentFeaturedImage = revisionPost ? revisionPost.featuredImage : post.featuredImage;
+      let resolvedRevisionFeaturedImage = revisionCurrentFeaturedImage;
+
+      if (imageIntent.type === "clear") {
+        if (revisionCurrentFeaturedImage && revisionCurrentFeaturedImage !== post.featuredImage) {
+          await deleteImage(revisionCurrentFeaturedImage);
+        }
+        resolvedRevisionFeaturedImage = null;
+      } else if (imageIntent.type === "set") {
+        const uploaded = await uploadImage(imageIntent.value);
+        if (uploaded !== revisionCurrentFeaturedImage) {
+          if (revisionCurrentFeaturedImage && revisionCurrentFeaturedImage !== post.featuredImage) {
+            await deleteImage(revisionCurrentFeaturedImage);
+          }
+          resolvedRevisionFeaturedImage = uploaded;
+        }
+      }
+
       const revisionPayload = {
         title: nextTitle,
         content: nextContent,
         category: nextCategory,
         tags: tags !== undefined ? tags : post.tags,
         status: "draft",
-        featuredImage,
+        featuredImage: resolvedRevisionFeaturedImage,
         metaDescription: metaDescription !== undefined ? metaDescription : post.metaDescription,
         focusKeyword: focusKeyword !== undefined ? focusKeyword : post.focusKeyword,
         revisionOf: post._id,
@@ -714,6 +750,18 @@ export const updatePost = async (req, res) => {
         post: revisionPost,
         isRevision: true,
       });
+    }
+
+    let resolvedFeaturedImage = post.featuredImage;
+    if (imageIntent.type === "clear") {
+      if (post.featuredImage) await deleteImage(post.featuredImage);
+      resolvedFeaturedImage = null;
+    } else if (imageIntent.type === "set") {
+      const uploaded = await uploadImage(imageIntent.value);
+      if (uploaded !== post.featuredImage) {
+        if (post.featuredImage) await deleteImage(post.featuredImage);
+        resolvedFeaturedImage = uploaded;
+      }
     }
 
     // Check if status changed from draft to published
@@ -741,7 +789,7 @@ export const updatePost = async (req, res) => {
         category: nextCategory,
         tags: tags !== undefined ? tags : post.tags,
         status: resolvedStatus,
-        featuredImage,
+        featuredImage: resolvedFeaturedImage,
         metaDescription: metaDescription !== undefined ? metaDescription : post.metaDescription,
         focusKeyword: focusKeyword !== undefined ? focusKeyword : post.focusKeyword,
       },
@@ -806,6 +854,16 @@ export const deletePost = async (req, res) => {
       req.user.role !== "admin"
     ) {
       return res.status(403).json({ message: "Not authorized" });
+    }
+
+    if (post.featuredImage) {
+      const stillUsed = await Post.exists({
+        _id: { $ne: post._id },
+        featuredImage: post.featuredImage,
+      });
+      if (!stillUsed) {
+        await deleteImage(post.featuredImage);
+      }
     }
 
     await post.deleteOne();
