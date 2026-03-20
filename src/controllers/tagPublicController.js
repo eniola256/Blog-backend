@@ -5,7 +5,8 @@ export const getPublicTags = async (req, res) => {
   try {
     const tags = await Tag.find()
       .select("name slug")
-      .sort({ name: 1 });
+      .sort({ name: 1 })
+      .lean();
 
     res.json({ tags });
   } catch (err) {
@@ -17,7 +18,7 @@ export const getTagWithPosts = async (req, res) => {
   try {
     const { slug } = req.params;
 
-    const tag = await Tag.findOne({ slug }).select("name slug");
+    const tag = await Tag.findOne({ slug }).select("name slug").lean();
     if (!tag) {
       return res.status(404).json({ message: "Tag not found" });
     }
@@ -28,7 +29,8 @@ export const getTagWithPosts = async (req, res) => {
     })
       .populate("author", "name")
       .populate("tags", "name slug")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     res.json({ tag, posts });
   } catch (err) {

@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import compression from "compression";
 import authRoutes from "./routes/auth.routes.js";
 import authMiddleware from "./middleware/auth.middleware.js";
 import authorizeRoles from "./middleware/role.middleware.js";
@@ -37,6 +38,7 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 app.use(cors());
+app.use(compression());
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ limit: "20mb", extended: true }));
 app.use('/uploads', express.static(uploadsDir));

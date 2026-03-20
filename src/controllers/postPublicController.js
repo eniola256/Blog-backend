@@ -5,14 +5,15 @@ import Category from '../models/category.js';
 
 
 const stripHtml = (value = "") => value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-const getExcerpt = (value = "", maxLength = 180) => {
-  const text = stripHtml(value);
+const getExcerpt = (value = "", maxLength = 180, alreadyStripped = false) => {
+  const text = alreadyStripped ? String(value) : stripHtml(value);
   if (!text) return "";
   if (text.length <= maxLength) return text;
   return `${text.slice(0, maxLength).trim()}...`;
 };
-const getReadTime = (value = "") => {
-  const words = stripHtml(value).split(" ").filter(Boolean).length;
+const getReadTime = (value = "", alreadyStripped = false) => {
+  const text = alreadyStripped ? String(value) : stripHtml(value);
+  const words = text.split(" ").filter(Boolean).length;
   const minutes = Math.max(1, Math.ceil(words / 200));
   return `${minutes} min read`;
 };
@@ -58,11 +59,11 @@ export const getPublishedPosts = async (req, res) => {
       let category = null;
 
       if (categoryFilter.match(/^[0-9a-fA-F]{24}$/)) {
-        category = await Category.findById(categoryFilter);
+        category = await Category.findById(categoryFilter).select("_id").lean();
       }
 
       if (!category) {
-        category = await Category.findOne({ slug: categoryFilter });
+        category = await Category.findOne({ slug: categoryFilter }).select("_id").lean();
       }
 
       if (!category) {
@@ -101,10 +102,10 @@ export const getPublishedPosts = async (req, res) => {
     if (tagFilter) {
       let tag = null;
       if (tagFilter.match(/^[0-9a-fA-F]{24}$/)) {
-        tag = await Tag.findById(tagFilter);
+        tag = await Tag.findById(tagFilter).select("_id").lean();
       }
       if (!tag) {
-        tag = await Tag.findOne({ slug: tagFilter });
+        tag = await Tag.findOne({ slug: tagFilter }).select("_id").lean();
       }
       if (!tag) {
         return res.json({
@@ -139,26 +140,28 @@ export const getPublishedPosts = async (req, res) => {
       }
     }
 
-    // Fetch posts with pagination
-    const posts = await Post.find(query)
-      .select("title slug content featuredImage createdAt author category tags metaDescription")
-      .populate("author", "name role")
-      .populate("category", "name slug")
-      .populate("tags", "name slug")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
-
-    // Total count for pagination
-    const totalPosts = await Post.countDocuments(query);
-    const lightweightPosts = posts.map((post) => ({
-      ...post,
-      excerpt: getExcerpt(post.content),
-      readTime: getReadTime(post.content),
-      featuredImage: transformImageUrl(getOptimizedListImage(post.featuredImage), req),
-      content: undefined,
-    }));
+    const [posts, totalPosts] = await Promise.all([
+      Post.find(query)
+        .select("title slug content featuredImage createdAt author category tags metaDescription")
+        .populate("author", "name role")
+        .populate("category", "name slug")
+        .populate("tags", "name slug")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Post.countDocuments(query),
+    ]);
+    const lightweightPosts = posts.map((post) => {
+      const strippedContent = stripHtml(post.content || "");
+      return {
+        ...post,
+        excerpt: getExcerpt(strippedContent, 180, true),
+        readTime: getReadTime(strippedContent, true),
+        featuredImage: transformImageUrl(getOptimizedListImage(post.featuredImage), req),
+        content: undefined,
+      };
+    });
 
     // Return response
     res.json({

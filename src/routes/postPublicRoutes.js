@@ -6,8 +6,15 @@ import {
 
 const router = express.Router();
 
+const cacheControl = (seconds) => (req, res, next) => {
+  res.set(
+    "Cache-Control",
+    `public, max-age=${seconds}, stale-while-revalidate=${seconds * 5}`
+  );
+  next();
+};
 
-router.get('/', getPublishedPosts);
-router.get('/:slug', getPublishedPostBySlug);
+router.get('/', cacheControl(60), getPublishedPosts);
+router.get('/:slug', cacheControl(300), getPublishedPostBySlug);
 
 export default router;

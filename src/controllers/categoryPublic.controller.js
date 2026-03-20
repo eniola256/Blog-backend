@@ -5,7 +5,8 @@ export const getPublicCategories = async (req, res) => {
   try {
     const categories = await Category.find()
       .select("name slug")
-      .sort({ name: 1 });
+      .sort({ name: 1 })
+      .lean();
 
     res.json({categories});
   } catch (error) {
@@ -18,7 +19,7 @@ export const getCategoryWithPosts = async (req, res) => {
   try {
     const { slug } = req.params;
 
-    const category = await Category.findOne({ slug }).select("name slug");
+    const category = await Category.findOne({ slug }).select("name slug").lean();
 
     if (!category) {
       return res.status(404).json({ message: "Category not found" });
@@ -30,7 +31,8 @@ export const getCategoryWithPosts = async (req, res) => {
     })
       .populate("author", "name")
       .populate("category", "name slug")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     res.json({
       category,
